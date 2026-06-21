@@ -1,0 +1,15 @@
+# Build directories
+cmake-build-*/
+build/
+
+# Executable output
+bin/
+
+# IDE
+.idea/
+*.user
+*.user.*
+
+# OS
+.DS_Store
+Thumbs.db
