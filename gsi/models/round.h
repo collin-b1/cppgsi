@@ -15,6 +15,7 @@ namespace cs2gsi
         std::optional<RoundBombState> bomb;
         std::optional<std::string> win_team;
 
+        bool operator==(const Round&) const = default;
         static Round from_json(const nlohmann::json& j);
     };
 } // namespace cs2gsi

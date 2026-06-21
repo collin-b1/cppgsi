@@ -1,5 +1,8 @@
+#include <cstdio>
 #include "added.h"
 #include "bomb.h"
+#include "grenade.h"
+#include "phase_countdowns.h"
 #include "provider.h"
 #include "map.h"
 #include "round.h"
@@ -18,15 +21,22 @@ namespace cs2gsi
         return "";
     }
 
+    static Vec3 parse_vec3(const std::string& s)
+    {
+        Vec3 v;
+        std::sscanf(s.c_str(), "%lf, %lf, %lf", &v.x, &v.y, &v.z);
+        return v;
+    }
+
     // ---- Provider ---------------------------------------------------------------
 
     Provider Provider::from_json(const nlohmann::json& j)
     {
         return {
-            .name = j.value("name", ""),
+            .name = str_val(j, "name"),
             .appid = j.value("appid", 0),
             .version = j.value("version", 0),
-            .steamid = j.value("steamid", ""),
+            .steamid = str_val(j, "steamid"),
             .timestamp = j.value("timestamp", int64_t{0}),
         };
     }
@@ -59,8 +69,14 @@ namespace cs2gsi
         m.name = str_val(j, "name");
         m.phase = parse_map_phase(str_val(j, "phase"));
         m.round = j.value("round", 0);
+        m.num_matches_to_win_series = j.value("num_matches_to_win_series", 0);
         if (j.contains("team_ct") && j["team_ct"].is_object()) m.team_ct = TeamState::from_json(j["team_ct"]);
-        if (j.contains("team_t")  && j["team_t"].is_object())  m.team_t  = TeamState::from_json(j["team_t"]);
+        if (j.contains("team_t") && j["team_t"].is_object()) m.team_t = TeamState::from_json(j["team_t"]);
+        if (j.contains("round_wins") && j["round_wins"].is_object()) {
+            for (auto& [k, v] : j["round_wins"].items()) {
+                if (v.is_string()) m.round_wins[std::stoi(k)] = v.get<std::string>();
+            }
+        }
         return m;
     }
 
@@ -106,13 +122,13 @@ namespace cs2gsi
     Weapon Weapon::from_json(const nlohmann::json& j)
     {
         Weapon w;
-        w.name = j.value("name", "");
-        w.paintkit = j.value("paintkit", "");
-        w.type = j.value("type", "");
-        w.state = parse_weapon_state(j.value("state", ""));
-        if (j.contains("ammo_clip")) w.ammo_clip = j["ammo_clip"].get<int>();
-        if (j.contains("ammo_clip_max")) w.ammo_clip_max = j["ammo_clip_max"].get<int>();
-        if (j.contains("ammo_reserve")) w.ammo_reserve = j["ammo_reserve"].get<int>();
+        w.name = str_val(j, "name");
+        w.paintkit = str_val(j, "paintkit");
+        w.type = str_val(j, "type");
+        w.state = parse_weapon_state(str_val(j, "state"));
+        if (auto it = j.find("ammo_clip");     it != j.end() && it->is_number()) w.ammo_clip     = it->get<int>();
+        if (auto it = j.find("ammo_clip_max"); it != j.end() && it->is_number()) w.ammo_clip_max = it->get<int>();
+        if (auto it = j.find("ammo_reserve");  it != j.end() && it->is_number()) w.ammo_reserve  = it->get<int>();
         return w;
     }
 
@@ -164,10 +180,29 @@ namespace cs2gsi
         p.observer_slot = j.value("observer_slot", 0);
         p.team          = str_val(j, "team");
         p.activity      = str_val(j, "activity");
+        const auto pos_str = str_val(j, "position");
+        if (!pos_str.empty()) p.position = parse_vec3(pos_str);
+        const auto fwd_str = str_val(j, "forward");
+        if (!fwd_str.empty()) p.forward = parse_vec3(fwd_str);
+        const auto spectarget = str_val(j, "spectarget");
+        if (!spectarget.empty()) p.spectarget = spectarget;
         if (j.contains("state")       && j["state"].is_object())       p.state       = PlayerState::from_json(j["state"]);
         if (j.contains("weapons")     && j["weapons"].is_object())     p.weapons     = weapons_from_json(j["weapons"]);
         if (j.contains("match_stats") && j["match_stats"].is_object()) p.match_stats = PlayerMatchStats::from_json(j["match_stats"]);
         return p;
+    }
+
+    AllPlayersMap all_players_from_json(const nlohmann::json& j)
+    {
+        AllPlayersMap players;
+        for (auto& [steamid, data] : j.items()) {
+            if (data.is_object()) {
+                auto p = Player::from_json(data);
+                p.steamid = steamid;
+                players[steamid] = std::move(p);
+            }
+        }
+        return players;
     }
 
     // ---- Bomb -------------------------------------------------------------------
@@ -180,20 +215,85 @@ namespace cs2gsi
         if (s == "planted") return BombState::Planted;
         if (s == "defusing") return BombState::Defusing;
         if (s == "defused") return BombState::Defused;
+        if (s == "exploded") return BombState::Exploded;
         return BombState::Unknown;
     }
 
     Bomb Bomb::from_json(const nlohmann::json& j)
     {
         Bomb b;
-        b.state    = parse_bomb_state(str_val(j, "state"));
-        b.position = str_val(j, "position");
-        b.player   = str_val(j, "player");
+        b.state = parse_bomb_state(str_val(j, "state"));
+        const auto pos_str = str_val(j, "position");
+        if (!pos_str.empty()) b.position = parse_vec3(pos_str);
+        b.player = str_val(j, "player");
         if (j.contains("countdown")) {
             const auto& v = j["countdown"];
             b.countdown = v.is_string() ? std::stod(v.get<std::string>()) : v.get<double>();
         }
         return b;
+    }
+
+    // ---- Grenade ----------------------------------------------------------------
+
+    static GrenadeType parse_grenade_type(const std::string& s)
+    {
+        if (s == "frag") return GrenadeType::Frag;
+        if (s == "inferno") return GrenadeType::Inferno;
+        if (s == "smoke") return GrenadeType::Smoke;
+        if (s == "flashbang") return GrenadeType::Flashbang;
+        if (s == "decoy") return GrenadeType::Decoy;
+        return GrenadeType::Unknown;
+    }
+
+    Grenade Grenade::from_json(const nlohmann::json& j)
+    {
+        Grenade g;
+        g.type = parse_grenade_type(str_val(j, "type"));
+        g.owner = str_val(j, "owner");
+        const auto lifetime_str = str_val(j, "lifetime");
+        if (!lifetime_str.empty()) g.lifetime = std::stod(lifetime_str);
+        const auto pos_str = str_val(j, "position");
+        if (!pos_str.empty()) g.position = parse_vec3(pos_str);
+        const auto vel_str = str_val(j, "velocity");
+        if (!vel_str.empty()) g.velocity = parse_vec3(vel_str);
+        if (j.contains("flames") && j["flames"].is_object()) {
+            std::map<std::string, Vec3> flames;
+            for (auto& [name, pos] : j["flames"].items()) {
+                if (pos.is_string()) flames[name] = parse_vec3(pos.get<std::string>());
+            }
+            g.flames = std::move(flames);
+        }
+        return g;
+    }
+
+    GrenadeMap grenades_from_json(const nlohmann::json& j)
+    {
+        GrenadeMap grenades;
+        for (auto& [id, data] : j.items()) {
+            if (data.is_object()) grenades[id] = Grenade::from_json(data);
+        }
+        return grenades;
+    }
+
+    // ---- PhaseCountdowns --------------------------------------------------------
+
+    static PhaseCountdownPhase parse_phase_countdown_phase(const std::string& s)
+    {
+        if (s == "warmup") return PhaseCountdownPhase::Warmup;
+        if (s == "freezetime") return PhaseCountdownPhase::FreezeTime;
+        if (s == "live") return PhaseCountdownPhase::Live;
+        if (s == "bomb") return PhaseCountdownPhase::Bomb;
+        if (s == "over") return PhaseCountdownPhase::Over;
+        return PhaseCountdownPhase::Unknown;
+    }
+
+    PhaseCountdowns PhaseCountdowns::from_json(const nlohmann::json& j)
+    {
+        PhaseCountdowns pc;
+        pc.phase = parse_phase_countdown_phase(str_val(j, "phase"));
+        const auto ends_in = str_val(j, "phase_ends_in");
+        if (!ends_in.empty()) pc.phase_ends_in = std::stod(ends_in);
+        return pc;
     }
 
     // ---- Previously -------------------------------------------------------------

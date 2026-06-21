@@ -10,15 +10,14 @@ int main()
 
     cs2gsi::GSIDispatcher dispatcher;
 
-    dispatcher.on_bomb([](const cs2gsi::Bomb& bomb)
-    {
-        std::cout << bomb.position << std::endl;
-    });
-
-    dispatcher.on_round([](const cs2gsi::Round& round)
-    {
-        std::cout << static_cast<int>(round.phase) << std::endl;
-    });
+    dispatcher.player().on(&cs2gsi::Player::state,
+                           [](const auto& old_s, const auto& new_s)
+                           {
+                               if (old_s.health > new_s.health)
+                               {
+                                   std::cout << "health: " << old_s.health << " -> " << new_s.health << "\n";
+                               }
+                           });
 
     cs2gsi::GSIServer server(dispatcher);
     server.start();

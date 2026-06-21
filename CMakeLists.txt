@@ -37,3 +37,7 @@ target_compile_features(cppgsi PUBLIC cxx_std_23)
 # GSI server executable
 add_executable(cppgsi_server test.cpp)
 target_link_libraries(cppgsi_server PRIVATE cppgsi)
+
+# Tests
+enable_testing()
+add_subdirectory(tests)

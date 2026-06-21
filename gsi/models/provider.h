@@ -13,6 +13,7 @@ namespace cs2gsi
         std::string steamid;
         std::int64_t timestamp{};
 
+        bool operator==(const Provider&) const = default;
         static Provider from_json(const nlohmann::json& j);
     };
 } // namespace cs2gsi

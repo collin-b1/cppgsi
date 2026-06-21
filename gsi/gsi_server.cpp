@@ -8,6 +8,21 @@ namespace cs2gsi
     {
         server_.Post("/", [this](const httplib::Request& req, httplib::Response& res)
         {
+            if (capturing_)
+            {
+                if (std::chrono::steady_clock::now() < capture_until_)
+                {
+                    capture_file_ << req.body << "\n";
+                    capture_file_.flush();
+                }
+                else
+                {
+                    capturing_ = false;
+                    capture_file_.close();
+                    std::cout << "[GSIServer] capture complete\n";
+                }
+            }
+
             try
             {
                 dispatcher_.dispatch(nlohmann::json::parse(req.body));
@@ -19,6 +34,14 @@ namespace cs2gsi
                 res.status = 400;
             }
         });
+    }
+
+    void GSIServer::capture_to_file(const std::string& path, std::chrono::seconds duration)
+    {
+        capture_file_.open(path, std::ios::trunc);
+        capture_until_ = std::chrono::steady_clock::now() + duration;
+        capturing_ = true;
+        std::cout << "[GSIServer] capturing payloads to " << path << " for " << duration.count() << "s\n";
     }
 
     void GSIServer::start()

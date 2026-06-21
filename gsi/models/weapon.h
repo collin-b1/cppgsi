@@ -18,6 +18,7 @@ namespace cs2gsi
         std::optional<int> ammo_clip_max;
         std::optional<int> ammo_reserve;
 
+        bool operator==(const Weapon&) const = default;
         static Weapon from_json(const nlohmann::json& j);
     };
 

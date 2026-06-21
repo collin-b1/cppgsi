@@ -17,6 +17,7 @@ namespace cs2gsi
         std::optional<Round> round;
         std::optional<Player> player;
 
+        bool operator==(const Added&) const = default;
         static Added from_json(const nlohmann::json& j);
     };
 } // namespace cs2gsi
