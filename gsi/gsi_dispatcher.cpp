@@ -96,6 +96,35 @@ namespace cs2gsi
         return {[this](SubId id) { unsubscribe(id); }, [this](auto cb) { return on_grenades(std::move(cb)); }};
     }
 
+    SubId GSIDispatcher::on_grenade_thrown(std::function<void(const std::string&, const Grenade&)> cb)
+    {
+        std::lock_guard lock(mutex_);
+        auto id = next_id_++;
+        grenade_thrown_subs_[id] = std::move(cb);
+        return id;
+    }
+
+    SubId GSIDispatcher::on_grenade_detonated(const std::string& grenade_id, std::function<void(const Grenade&)> cb)
+    {
+        std::lock_guard lock(mutex_);
+        auto id = next_id_++;
+        grenade_detonated_subs_[grenade_id][id] = std::move(cb);
+        return id;
+    }
+
+    ComponentObserver<Grenade> GSIDispatcher::grenade(const std::string& grenade_id)
+    {
+        return {
+            [this](SubId id) { unsubscribe(id); },
+            [this, grenade_id](std::function<void(const Grenade&, const Grenade&)> cb) {
+                std::lock_guard lock(mutex_);
+                auto id = next_id_++;
+                grenade_field_subs_[grenade_id][id] = std::move(cb);
+                return id;
+            }
+        };
+    }
+
     ComponentObserver<PhaseCountdowns> GSIDispatcher::phase_countdowns()
     {
         return {[this](SubId id) { unsubscribe(id); }, [this](auto cb) { return on_phase_countdowns(std::move(cb)); }};
@@ -112,6 +141,9 @@ namespace cs2gsi
         all_players_subs_.erase(id);
         grenades_subs_.erase(id);
         phase_countdowns_subs_.erase(id);
+        grenade_thrown_subs_.erase(id);
+        for (auto& [gid, subs] : grenade_field_subs_) subs.erase(id);
+        for (auto& [gid, subs] : grenade_detonated_subs_) subs.erase(id);
     }
 
     void GSIDispatcher::dispatch(const nlohmann::json& json)
@@ -127,6 +159,9 @@ namespace cs2gsi
         auto ap_subs = all_players_subs_;
         auto gr_subs = grenades_subs_;
         auto pc_subs = phase_countdowns_subs_;
+        auto thrown_subs = grenade_thrown_subs_;
+        auto field_subs = grenade_field_subs_;
+        auto det_subs = grenade_detonated_subs_;
 
         GameState old_gs = prev_game_state_.value_or(GameState{});
         Player old_p = prev_player_.value_or(Player{});
@@ -168,6 +203,37 @@ namespace cs2gsi
 
         if (state.grenades && *state.grenades != old_gr)
             for (auto& [id, cb] : gr_subs) cb(old_gr, *state.grenades);
+
+        if (state.grenades) {
+            const GrenadeMap& new_gr = *state.grenades;
+
+            for (const auto& [id, nade] : new_gr)
+                if (!old_gr.count(id))
+                    for (auto& [sid, cb] : thrown_subs) cb(id, nade);
+
+            std::vector<std::string> detonated;
+            for (const auto& [id, nade] : old_gr) {
+                if (!new_gr.count(id)) {
+                    detonated.push_back(id);
+                    if (auto it = det_subs.find(id); it != det_subs.end())
+                        for (auto& [sid, cb] : it->second) cb(nade);
+                }
+            }
+
+            for (const auto& [id, new_nade] : new_gr) {
+                if (auto old_it = old_gr.find(id); old_it != old_gr.end() && old_it->second != new_nade)
+                    if (auto it = field_subs.find(id); it != field_subs.end())
+                        for (auto& [sid, cb] : it->second) cb(old_it->second, new_nade);
+            }
+
+            if (!detonated.empty()) {
+                std::lock_guard cleanup_lock(mutex_);
+                for (const auto& id : detonated) {
+                    grenade_field_subs_.erase(id);
+                    grenade_detonated_subs_.erase(id);
+                }
+            }
+        }
 
         if (state.phase_countdowns && *state.phase_countdowns != old_pc)
             for (auto& [id, cb] : pc_subs) cb(old_pc, *state.phase_countdowns);

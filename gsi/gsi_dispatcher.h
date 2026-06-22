@@ -22,6 +22,8 @@ namespace cs2gsi
         SubId on_all_players(std::function<void(const AllPlayersMap&, const AllPlayersMap&)> cb);
         SubId on_grenades(std::function<void(const GrenadeMap&, const GrenadeMap&)> cb);
         SubId on_phase_countdowns(std::function<void(const PhaseCountdowns&, const PhaseCountdowns&)> cb);
+        SubId on_grenade_thrown(std::function<void(const std::string&, const Grenade&)> cb);
+        SubId on_grenade_detonated(const std::string& id, std::function<void(const Grenade&)> cb);
 
         // Field-level proxies. Use proxy.on(&Type::field, cb) to subscribe to a
         // single field — the callback fires only when that specific field changes.
@@ -32,6 +34,7 @@ namespace cs2gsi
         ComponentObserver<AllPlayersMap>   all_players();
         ComponentObserver<GrenadeMap>      grenades();
         ComponentObserver<PhaseCountdowns> phase_countdowns();
+        ComponentObserver<Grenade>         grenade(const std::string& id);
 
         // Remove a subscription by its ID. Safe to call with an unknown ID.
         void unsubscribe(SubId id);
@@ -52,6 +55,9 @@ namespace cs2gsi
         std::unordered_map<SubId, std::function<void(const AllPlayersMap&, const AllPlayersMap&)>> all_players_subs_;
         std::unordered_map<SubId, std::function<void(const GrenadeMap&, const GrenadeMap&)>>       grenades_subs_;
         std::unordered_map<SubId, std::function<void(const PhaseCountdowns&, const PhaseCountdowns&)>> phase_countdowns_subs_;
+        std::unordered_map<SubId, std::function<void(const std::string&, const Grenade&)>> grenade_thrown_subs_;
+        std::unordered_map<std::string, std::unordered_map<SubId, std::function<void(const Grenade&, const Grenade&)>>> grenade_field_subs_;
+        std::unordered_map<std::string, std::unordered_map<SubId, std::function<void(const Grenade&)>>> grenade_detonated_subs_;
 
         std::optional<GameState>       prev_game_state_;
         std::optional<Player>          prev_player_;
