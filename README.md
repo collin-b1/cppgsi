@@ -19,7 +19,7 @@ Dependencies (bundled as submodules):
 include(FetchContent)
 FetchContent_Declare(cppgsi
     GIT_REPOSITORY https://github.com/collin-b1/cppgsi
-    GIT_TAG main
+    GIT_TAG v1.0.0
 )
 FetchContent_MakeAvailable(cppgsi)
 
