@@ -59,12 +59,7 @@ target_link_libraries(your_target PRIVATE cppgsi::cppgsi)
 #include "gsi/gsi_config.h"
 
 int main() {
-    cs2gsi::GSIConfig config;
-    config.uri = "/";
-    config.timeout = 1.0;
-    config.buffer = 0.1;
-    config.throttle = 0.0;
-    config.heartbeat = 5.0;
+    cs2gsi::generate_gsi_config("my_app"); // writes gamestate_integration_my_app.cfg to CS2's cfg directory
 
     cs2gsi::GSIDispatcher dispatcher;
 
@@ -84,7 +79,7 @@ int main() {
         // fires when a grenade disappears from the map
     });
 
-    cs2gsi::GSIServer server("127.0.0.1", 3000, config, dispatcher);
+    cs2gsi::GSIServer server(dispatcher); // defaults to 127.0.0.1:3000
     server.start(); // blocks
 }
 ```
@@ -132,7 +127,7 @@ CS2 must be configured to send GSI payloads to your server. Create a config file
     "uri"           "http://127.0.0.1:3000/"
     "timeout"       "1.0"
     "buffer"        "0.1"
-    "throttle"      "0.0"
+    "throttle"      "0.1"
     "heartbeat"     "5.0"
     "data"
     {
@@ -152,6 +147,7 @@ CS2 must be configured to send GSI payloads to your server. Create a config file
         "phase_countdowns"  "1"
         "allgrenades"       "1"
         "bomb"              "1"
+        "player_position"   "1"
     }
 }
 ```
