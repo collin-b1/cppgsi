@@ -58,7 +58,8 @@ namespace cs2gsi {
         std::unordered_map<SubId, std::function<void(const PhaseCountdowns &, const PhaseCountdowns &)>>
                 phase_countdowns_subs_;
         std::unordered_map<SubId, std::function<void(const std::string &, const Grenade &)>> grenade_thrown_subs_;
-        std::unordered_map<SubId, std::function<void(const std::string &, const Grenade &)>> any_grenade_detonated_subs_;
+        std::unordered_map<SubId, std::function<void(const std::string &, const Grenade &)>>
+                any_grenade_detonated_subs_;
         std::unordered_map<std::string,
                            std::unordered_map<SubId, std::function<void(const Grenade &, const Grenade &)>>>
                 grenade_field_subs_;

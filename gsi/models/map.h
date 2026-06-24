@@ -6,15 +6,9 @@
 namespace cs2gsi {
     enum class MapPhase { Warmup, Live, Intermission, GameOver, Unknown };
 
-    enum class GameMode {
-        Competitive, Casual, Deathmatch, Wingman, ArmsRace, Demolition, Custom, Unknown
-    };
+    enum class GameMode { Competitive, Casual, Deathmatch, Wingman, ArmsRace, Demolition, Custom, Unknown };
 
-    enum class RoundWinReason {
-        CTWinElimination, CTWinTime, CTWinDefuse,
-        TWinElimination, TWinBomb,
-        Unknown
-    };
+    enum class RoundWinReason { CTWinElimination, CTWinTime, CTWinDefuse, TWinElimination, TWinBomb, Unknown };
 
     struct TeamState {
         int score{};
