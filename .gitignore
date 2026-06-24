@@ -1,6 +1,7 @@
 # Build directories
 cmake-build-*/
 build/
+*_build/
 
 # Executable output
 bin/
