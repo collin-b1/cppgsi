@@ -34,10 +34,13 @@ target_include_directories(cppgsi PUBLIC
 target_link_libraries(cppgsi PUBLIC httplib::httplib nlohmann_json::nlohmann_json)
 target_compile_features(cppgsi PUBLIC cxx_std_23)
 
-# GSI server executable
-add_executable(cppgsi_server test.cpp)
-target_link_libraries(cppgsi_server PRIVATE cppgsi)
-
 # Tests
 enable_testing()
 add_subdirectory(tests)
+
+# Examples — not built by default so they don't affect library consumers.
+# Enable with: cmake -DCPPGSI_BUILD_EXAMPLES=ON
+option(CPPGSI_BUILD_EXAMPLES "Build cppgsi examples" OFF)
+if(CPPGSI_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()

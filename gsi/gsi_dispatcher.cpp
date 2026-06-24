@@ -88,6 +88,13 @@ namespace cs2gsi {
         return id;
     }
 
+    SubId GSIDispatcher::on_grenade_detonated(std::function<void(const std::string &, const Grenade &)> cb) {
+        std::lock_guard lock(mutex_);
+        auto id = next_id_++;
+        any_grenade_detonated_subs_[id] = std::move(cb);
+        return id;
+    }
+
     SubId GSIDispatcher::on_grenade_detonated(const std::string &grenade_id, std::function<void(const Grenade &)> cb) {
         std::lock_guard lock(mutex_);
         auto id = next_id_++;
@@ -120,6 +127,7 @@ namespace cs2gsi {
         grenades_subs_.erase(id);
         phase_countdowns_subs_.erase(id);
         grenade_thrown_subs_.erase(id);
+        any_grenade_detonated_subs_.erase(id);
         for (auto &[gid, subs]: grenade_field_subs_)
             subs.erase(id);
         for (auto &[gid, subs]: grenade_detonated_subs_)
@@ -139,6 +147,7 @@ namespace cs2gsi {
         auto gr_subs = grenades_subs_;
         auto pc_subs = phase_countdowns_subs_;
         auto thrown_subs = grenade_thrown_subs_;
+        auto any_det_subs = any_grenade_detonated_subs_;
         auto field_subs = grenade_field_subs_;
         auto det_subs = grenade_detonated_subs_;
 
@@ -209,6 +218,8 @@ namespace cs2gsi {
             for (const auto &[id, nade]: old_gr) {
                 if (!new_gr.count(id)) {
                     detonated.push_back(id);
+                    for (auto &[sid, cb]: any_det_subs)
+                        cb(id, nade);
                     if (auto it = det_subs.find(id); it != det_subs.end())
                         for (auto &[sid, cb]: it->second)
                             cb(nade);

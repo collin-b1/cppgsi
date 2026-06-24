@@ -2,15 +2,14 @@
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
+#include "bomb.h"
 
 namespace cs2gsi {
     enum class RoundPhase { FreezeTime, Live, Over, Unknown };
 
-    enum class RoundBombState { Planted, Exploded, Defused, Unknown };
-
     struct Round {
         RoundPhase phase{RoundPhase::Unknown};
-        std::optional<RoundBombState> bomb;
+        std::optional<BombState> bomb;
         std::optional<std::string> win_team;
 
         bool operator==(const Round &) const = default;

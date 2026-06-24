@@ -1,5 +1,6 @@
 #include "gsi_server.h"
 #include <iostream>
+#include <stdexcept>
 
 namespace cs2gsi {
     GSIServer::GSIServer(GSIDispatcher &dispatcher, std::string host, int port) :
@@ -35,7 +36,8 @@ namespace cs2gsi {
 
     void GSIServer::start() {
         std::cout << "[GSIServer] listening on http://" << host_ << ":" << port_ << "\n";
-        server_.listen(host_, port_);
+        if (!server_.listen(host_, port_))
+            throw std::runtime_error("GSIServer failed to bind to " + host_ + ":" + std::to_string(port_));
     }
 
     void GSIServer::stop() { server_.stop(); }

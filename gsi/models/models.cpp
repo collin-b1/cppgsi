@@ -23,7 +23,7 @@ namespace cs2gsi
 
     static Vec3 parse_vec3(const std::string& s)
     {
-        Vec3 v;
+        Vec3 v{};
         std::sscanf(s.c_str(), "%lf, %lf, %lf", &v.x, &v.y, &v.z);
         return v;
     }
@@ -52,6 +52,28 @@ namespace cs2gsi
         return MapPhase::Unknown;
     }
 
+    static GameMode parse_game_mode(const std::string& s)
+    {
+        if (s == "competitive") return GameMode::Competitive;
+        if (s == "casual") return GameMode::Casual;
+        if (s == "deathmatch") return GameMode::Deathmatch;
+        if (s == "wingman") return GameMode::Wingman;
+        if (s == "armsrace") return GameMode::ArmsRace;
+        if (s == "demolition") return GameMode::Demolition;
+        if (s == "custom") return GameMode::Custom;
+        return GameMode::Unknown;
+    }
+
+    static RoundWinReason parse_round_win_reason(const std::string& s)
+    {
+        if (s == "ct_win_elimination") return RoundWinReason::CTWinElimination;
+        if (s == "ct_win_time") return RoundWinReason::CTWinTime;
+        if (s == "ct_win_defuse") return RoundWinReason::CTWinDefuse;
+        if (s == "t_win_elimination") return RoundWinReason::TWinElimination;
+        if (s == "t_win_bomb") return RoundWinReason::TWinBomb;
+        return RoundWinReason::Unknown;
+    }
+
     TeamState TeamState::from_json(const nlohmann::json& j)
     {
         return {
@@ -59,13 +81,15 @@ namespace cs2gsi
             .consecutive_round_losses = j.value("consecutive_round_losses", 0),
             .timeouts_remaining = j.value("timeouts_remaining", 0),
             .matches_won_this_series = j.value("matches_won_this_series", 0),
+            .name = str_val(j, "name"),
+            .flag = str_val(j, "flag"),
         };
     }
 
     Map Map::from_json(const nlohmann::json& j)
     {
         Map m;
-        m.mode = str_val(j, "mode");
+        m.mode = parse_game_mode(str_val(j, "mode"));
         m.name = str_val(j, "name");
         m.phase = parse_map_phase(str_val(j, "phase"));
         m.round = j.value("round", 0);
@@ -74,7 +98,10 @@ namespace cs2gsi
         if (j.contains("team_t") && j["team_t"].is_object()) m.team_t = TeamState::from_json(j["team_t"]);
         if (j.contains("round_wins") && j["round_wins"].is_object()) {
             for (auto& [k, v] : j["round_wins"].items()) {
-                if (v.is_string()) m.round_wins[std::stoi(k)] = v.get<std::string>();
+                try {
+                    if (v.is_string())
+                        m.round_wins[std::stoi(k)] = parse_round_win_reason(v.get<std::string>());
+                } catch (...) {}
             }
         }
         return m;
@@ -90,20 +117,12 @@ namespace cs2gsi
         return RoundPhase::Unknown;
     }
 
-    static RoundBombState parse_round_bomb_state(const std::string& s)
-    {
-        if (s == "planted") return RoundBombState::Planted;
-        if (s == "exploded") return RoundBombState::Exploded;
-        if (s == "defused") return RoundBombState::Defused;
-        return RoundBombState::Unknown;
-    }
-
     Round Round::from_json(const nlohmann::json& j)
     {
         Round r;
         r.phase = parse_round_phase(str_val(j, "phase"));
         const auto bomb_str = str_val(j, "bomb");
-        if (!bomb_str.empty()) r.bomb = parse_round_bomb_state(bomb_str);
+        if (!bomb_str.empty()) r.bomb = parse_bomb_state(bomb_str);
         const auto win_team = str_val(j, "win_team");
         if (!win_team.empty()) r.win_team = win_team;
         return r;
@@ -119,12 +138,26 @@ namespace cs2gsi
         return WeaponState::Unknown;
     }
 
+    static WeaponType parse_weapon_type(const std::string& s)
+    {
+        if (s == "Pistol") return WeaponType::Pistol;
+        if (s == "Rifle") return WeaponType::Rifle;
+        if (s == "SniperRifle") return WeaponType::SniperRifle;
+        if (s == "Submachine") return WeaponType::Submachine;
+        if (s == "Shotgun") return WeaponType::Shotgun;
+        if (s == "Machine") return WeaponType::Machine;
+        if (s == "Knife") return WeaponType::Knife;
+        if (s == "Grenade") return WeaponType::Grenade;
+        if (s == "C4") return WeaponType::C4;
+        return WeaponType::Unknown;
+    }
+
     Weapon Weapon::from_json(const nlohmann::json& j)
     {
         Weapon w;
         w.name = str_val(j, "name");
         w.paintkit = str_val(j, "paintkit");
-        w.type = str_val(j, "type");
+        w.type = parse_weapon_type(str_val(j, "type"));
         w.state = parse_weapon_state(str_val(j, "state"));
         if (auto it = j.find("ammo_clip");     it != j.end() && it->is_number()) w.ammo_clip     = it->get<int>();
         if (auto it = j.find("ammo_clip_max"); it != j.end() && it->is_number()) w.ammo_clip_max = it->get<int>();
@@ -141,6 +174,22 @@ namespace cs2gsi
     }
 
     // ---- Player -----------------------------------------------------------------
+
+    static PlayerTeam parse_player_team(const std::string& s)
+    {
+        if (s == "CT") return PlayerTeam::CT;
+        if (s == "T") return PlayerTeam::T;
+        if (s == "spectator" || s == "Spectator") return PlayerTeam::Spectator;
+        return PlayerTeam::Unknown;
+    }
+
+    static PlayerActivity parse_player_activity(const std::string& s)
+    {
+        if (s == "playing") return PlayerActivity::Playing;
+        if (s == "spectating") return PlayerActivity::Spectating;
+        if (s == "menu") return PlayerActivity::Menu;
+        return PlayerActivity::Unknown;
+    }
 
     PlayerState PlayerState::from_json(const nlohmann::json& j)
     {
@@ -178,14 +227,16 @@ namespace cs2gsi
         p.name          = str_val(j, "name");
         p.clan          = str_val(j, "clan");
         p.observer_slot = j.value("observer_slot", 0);
-        p.team          = str_val(j, "team");
-        p.activity      = str_val(j, "activity");
+        p.team          = parse_player_team(str_val(j, "team"));
+        p.activity      = parse_player_activity(str_val(j, "activity"));
         const auto pos_str = str_val(j, "position");
         if (!pos_str.empty()) p.position = parse_vec3(pos_str);
         const auto fwd_str = str_val(j, "forward");
         if (!fwd_str.empty()) p.forward = parse_vec3(fwd_str);
         const auto spectarget = str_val(j, "spectarget");
         if (!spectarget.empty()) p.spectarget = spectarget;
+        const auto crosshaircode = str_val(j, "crosshaircode");
+        if (!crosshaircode.empty()) p.crosshaircode = crosshaircode;
         if (j.contains("state")       && j["state"].is_object())       p.state       = PlayerState::from_json(j["state"]);
         if (j.contains("weapons")     && j["weapons"].is_object())     p.weapons     = weapons_from_json(j["weapons"]);
         if (j.contains("match_stats") && j["match_stats"].is_object()) p.match_stats = PlayerMatchStats::from_json(j["match_stats"]);
@@ -207,7 +258,7 @@ namespace cs2gsi
 
     // ---- Bomb -------------------------------------------------------------------
 
-    static BombState parse_bomb_state(const std::string& s)
+    BombState parse_bomb_state(const std::string& s)
     {
         if (s == "carried") return BombState::Carried;
         if (s == "dropped") return BombState::Dropped;
@@ -251,7 +302,9 @@ namespace cs2gsi
         g.type = parse_grenade_type(str_val(j, "type"));
         g.owner = str_val(j, "owner");
         const auto lifetime_str = str_val(j, "lifetime");
-        if (!lifetime_str.empty()) g.lifetime = std::stod(lifetime_str);
+        if (!lifetime_str.empty()) {
+            try { g.lifetime = std::stod(lifetime_str); } catch (...) {}
+        }
         const auto pos_str = str_val(j, "position");
         if (!pos_str.empty()) g.position = parse_vec3(pos_str);
         const auto vel_str = str_val(j, "velocity");
@@ -292,7 +345,9 @@ namespace cs2gsi
         PhaseCountdowns pc;
         pc.phase = parse_phase_countdown_phase(str_val(j, "phase"));
         const auto ends_in = str_val(j, "phase_ends_in");
-        if (!ends_in.empty()) pc.phase_ends_in = std::stod(ends_in);
+        if (!ends_in.empty()) {
+            try { pc.phase_ends_in = std::stod(ends_in); } catch (...) {}
+        }
         return pc;
     }
 
@@ -301,10 +356,14 @@ namespace cs2gsi
     Previously Previously::from_json(const nlohmann::json& j)
     {
         Previously p;
-        if (j.contains("provider") && j["provider"].is_object()) p.provider = Provider::from_json(j["provider"]);
-        if (j.contains("map")      && j["map"].is_object())      p.map      = Map::from_json(j["map"]);
-        if (j.contains("round")    && j["round"].is_object())    p.round    = Round::from_json(j["round"]);
-        if (j.contains("player")   && j["player"].is_object())   p.player   = Player::from_json(j["player"]);
+        if (j.contains("provider")         && j["provider"].is_object())          p.provider         = Provider::from_json(j["provider"]);
+        if (j.contains("map")              && j["map"].is_object())               p.map              = Map::from_json(j["map"]);
+        if (j.contains("round")            && j["round"].is_object())             p.round            = Round::from_json(j["round"]);
+        if (j.contains("player")           && j["player"].is_object())            p.player           = Player::from_json(j["player"]);
+        if (j.contains("bomb")             && j["bomb"].is_object())              p.bomb             = Bomb::from_json(j["bomb"]);
+        if (j.contains("allplayers")       && j["allplayers"].is_object())        p.all_players      = all_players_from_json(j["allplayers"]);
+        if (j.contains("grenades")         && j["grenades"].is_object())          p.grenades         = grenades_from_json(j["grenades"]);
+        if (j.contains("phase_countdowns") && j["phase_countdowns"].is_object())  p.phase_countdowns = PhaseCountdowns::from_json(j["phase_countdowns"]);
         return p;
     }
 
@@ -313,10 +372,14 @@ namespace cs2gsi
     Added Added::from_json(const nlohmann::json& j)
     {
         Added a;
-        if (j.contains("provider") && j["provider"].is_object()) a.provider = Provider::from_json(j["provider"]);
-        if (j.contains("map")      && j["map"].is_object())      a.map      = Map::from_json(j["map"]);
-        if (j.contains("round")    && j["round"].is_object())    a.round    = Round::from_json(j["round"]);
-        if (j.contains("player")   && j["player"].is_object())   a.player   = Player::from_json(j["player"]);
+        if (j.contains("provider")         && j["provider"].is_object())          a.provider         = Provider::from_json(j["provider"]);
+        if (j.contains("map")              && j["map"].is_object())               a.map              = Map::from_json(j["map"]);
+        if (j.contains("round")            && j["round"].is_object())             a.round            = Round::from_json(j["round"]);
+        if (j.contains("player")           && j["player"].is_object())            a.player           = Player::from_json(j["player"]);
+        if (j.contains("bomb")             && j["bomb"].is_object())              a.bomb             = Bomb::from_json(j["bomb"]);
+        if (j.contains("allplayers")       && j["allplayers"].is_object())        a.all_players      = all_players_from_json(j["allplayers"]);
+        if (j.contains("grenades")         && j["grenades"].is_object())          a.grenades         = grenades_from_json(j["grenades"]);
+        if (j.contains("phase_countdowns") && j["phase_countdowns"].is_object())  a.phase_countdowns = PhaseCountdowns::from_json(j["phase_countdowns"]);
         return a;
     }
 } // namespace cs2gsi

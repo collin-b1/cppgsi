@@ -7,6 +7,9 @@
 #include "weapon.h"
 
 namespace cs2gsi {
+    enum class PlayerTeam { CT, T, Spectator, Unknown };
+    enum class PlayerActivity { Playing, Spectating, Menu, Unknown };
+
     struct PlayerState {
         int armor{};
         int burning{};
@@ -41,11 +44,12 @@ namespace cs2gsi {
         std::string name;
         std::string clan;
         int observer_slot{};
-        std::string team;
-        std::string activity;
+        PlayerTeam team{PlayerTeam::Unknown};
+        PlayerActivity activity{PlayerActivity::Unknown};
         Vec3 position;
         Vec3 forward;
         std::optional<std::string> spectarget;
+        std::optional<std::string> crosshaircode;
         PlayerState state;
         WeaponSlots weapons;
         PlayerMatchStats match_stats;

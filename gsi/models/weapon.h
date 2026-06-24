@@ -7,10 +7,14 @@
 namespace cs2gsi {
     enum class WeaponState { Active, Holstered, Reloading, Unknown };
 
+    enum class WeaponType {
+        Pistol, Rifle, SniperRifle, Submachine, Shotgun, Machine, Knife, Grenade, C4, Unknown
+    };
+
     struct Weapon {
         std::string name;
         std::string paintkit;
-        std::string type;
+        WeaponType type{WeaponType::Unknown};
         WeaponState state{WeaponState::Unknown};
         std::optional<int> ammo_clip;
         std::optional<int> ammo_clip_max;

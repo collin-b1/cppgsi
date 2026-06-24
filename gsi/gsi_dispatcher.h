@@ -21,6 +21,9 @@ namespace cs2gsi {
         SubId on_grenades(std::function<void(const GrenadeMap &, const GrenadeMap &)> cb);
         SubId on_phase_countdowns(std::function<void(const PhaseCountdowns &, const PhaseCountdowns &)> cb);
         SubId on_grenade_thrown(std::function<void(const std::string &, const Grenade &)> cb);
+        // Fires when any grenade disappears from the map (detonation, expiry, etc.).
+        SubId on_grenade_detonated(std::function<void(const std::string &, const Grenade &)> cb);
+        // Fires when the specific grenade with the given id disappears.
         SubId on_grenade_detonated(const std::string &id, std::function<void(const Grenade &)> cb);
 
         // Field-level proxies. Use proxy.on(&Type::field, cb) to subscribe to a
@@ -55,6 +58,7 @@ namespace cs2gsi {
         std::unordered_map<SubId, std::function<void(const PhaseCountdowns &, const PhaseCountdowns &)>>
                 phase_countdowns_subs_;
         std::unordered_map<SubId, std::function<void(const std::string &, const Grenade &)>> grenade_thrown_subs_;
+        std::unordered_map<SubId, std::function<void(const std::string &, const Grenade &)>> any_grenade_detonated_subs_;
         std::unordered_map<std::string,
                            std::unordered_map<SubId, std::function<void(const Grenade &, const Grenade &)>>>
                 grenade_field_subs_;

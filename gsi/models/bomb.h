@@ -7,6 +7,8 @@
 namespace cs2gsi {
     enum class BombState { Carried, Dropped, Planting, Planted, Defusing, Defused, Exploded, Unknown };
 
+    BombState parse_bomb_state(const std::string &s);
+
     struct Bomb {
         BombState state{BombState::Unknown};
         Vec3 position;

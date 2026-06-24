@@ -111,6 +111,48 @@ TEST_CASE("Map::from_json parses phase")
     REQUIRE(parse_phase("other") == g::MapPhase::Unknown);
 }
 
+TEST_CASE("Map::from_json parses all GameMode values")
+{
+    auto parse_mode = [](const std::string& s)
+    {
+        return g::Map::from_json(json{{"mode", s}}).mode;
+    };
+    REQUIRE(parse_mode("competitive") == g::GameMode::Competitive);
+    REQUIRE(parse_mode("casual") == g::GameMode::Casual);
+    REQUIRE(parse_mode("deathmatch") == g::GameMode::Deathmatch);
+    REQUIRE(parse_mode("wingman") == g::GameMode::Wingman);
+    REQUIRE(parse_mode("armsrace") == g::GameMode::ArmsRace);
+    REQUIRE(parse_mode("demolition") == g::GameMode::Demolition);
+    REQUIRE(parse_mode("custom") == g::GameMode::Custom);
+    REQUIRE(parse_mode("other") == g::GameMode::Unknown);
+}
+
+TEST_CASE("Map::from_json parses all RoundWinReason values")
+{
+    auto j = json{
+        {"round_wins", {
+            {"1", "ct_win_elimination"}, {"2", "ct_win_time"}, {"3", "ct_win_defuse"},
+            {"4", "t_win_elimination"}, {"5", "t_win_bomb"}
+        }}
+    };
+    auto map = g::Map::from_json(j);
+    REQUIRE(map.round_wins.at(1) == g::RoundWinReason::CTWinElimination);
+    REQUIRE(map.round_wins.at(2) == g::RoundWinReason::CTWinTime);
+    REQUIRE(map.round_wins.at(3) == g::RoundWinReason::CTWinDefuse);
+    REQUIRE(map.round_wins.at(4) == g::RoundWinReason::TWinElimination);
+    REQUIRE(map.round_wins.at(5) == g::RoundWinReason::TWinBomb);
+}
+
+TEST_CASE("TeamState::from_json parses name and flag")
+{
+    auto j = json{{"team_ct", {{"score", 5}, {"name", "Natus Vincere"}, {"flag", "ua"}}}};
+    auto map = g::Map::from_json(j);
+    REQUIRE(map.team_ct.score == 5);
+    REQUIRE(map.team_ct.name == "Natus Vincere");
+    REQUIRE(map.team_ct.flag == "ua");
+    REQUIRE(map.team_ct.name != map.team_t.name); // team_t has empty name
+}
+
 TEST_CASE("Map::from_json parses team scores and round_wins")
 {
     auto j = json{
@@ -130,7 +172,7 @@ TEST_CASE("Map::from_json parses team scores and round_wins")
         {"round_wins", {{"1", "ct_win_elimination"}, {"2", "t_win_bomb"}, {"3", "ct_win_defuse"}}}
     };
     auto map = g::Map::from_json(j);
-    REQUIRE(map.mode == "casual");
+    REQUIRE(map.mode == g::GameMode::Casual);
     REQUIRE(map.name == "de_overpass");
     REQUIRE(map.phase == g::MapPhase::Live);
     REQUIRE(map.round == 9);
@@ -139,9 +181,9 @@ TEST_CASE("Map::from_json parses team scores and round_wins")
     REQUIRE(map.team_t.score == 3);
     REQUIRE(map.team_t.consecutive_round_losses == 1);
     REQUIRE(map.round_wins.size() == 3);
-    REQUIRE(map.round_wins.at(1) == "ct_win_elimination");
-    REQUIRE(map.round_wins.at(2) == "t_win_bomb");
-    REQUIRE(map.round_wins.at(3) == "ct_win_defuse");
+    REQUIRE(map.round_wins.at(1) == g::RoundWinReason::CTWinElimination);
+    REQUIRE(map.round_wins.at(2) == g::RoundWinReason::TWinBomb);
+    REQUIRE(map.round_wins.at(3) == g::RoundWinReason::CTWinDefuse);
 }
 
 TEST_CASE("Map::from_json with missing optional sections")
@@ -174,7 +216,7 @@ TEST_CASE("Round::from_json parses optional bomb and win_team")
         auto round = g::Round::from_json(j);
         REQUIRE(round.phase == g::RoundPhase::Over);
         REQUIRE(round.bomb.has_value());
-        REQUIRE(*round.bomb == g::RoundBombState::Exploded);
+        REQUIRE(*round.bomb == g::BombState::Exploded);
         REQUIRE(round.win_team.has_value());
         REQUIRE(*round.win_team == "T");
     }
@@ -208,7 +250,7 @@ TEST_CASE("Weapon::from_json parses rifle with ammo")
     };
     auto w = g::Weapon::from_json(j);
     REQUIRE(w.name == "weapon_ak47");
-    REQUIRE(w.type == "Rifle");
+    REQUIRE(w.type == g::WeaponType::Rifle);
     REQUIRE(w.state == g::WeaponState::Active);
     REQUIRE(w.ammo_clip.has_value());
     REQUIRE(*w.ammo_clip == 28);
@@ -240,7 +282,7 @@ TEST_CASE("Weapon::from_json handles false string fields")
     auto w = g::Weapon::from_json(j);
     REQUIRE(w.name == "");
     REQUIRE(w.paintkit == "");
-    REQUIRE(w.type == "");
+    REQUIRE(w.type == g::WeaponType::Unknown);
     REQUIRE(w.state == g::WeaponState::Unknown);
 }
 
@@ -254,6 +296,24 @@ TEST_CASE("Weapon::from_json parses all WeaponState values")
     REQUIRE(parse_state("holstered") == g::WeaponState::Holstered);
     REQUIRE(parse_state("reloading") == g::WeaponState::Reloading);
     REQUIRE(parse_state("other") == g::WeaponState::Unknown);
+}
+
+TEST_CASE("Weapon::from_json parses all WeaponType values")
+{
+    auto parse_type = [](const std::string& s)
+    {
+        return g::Weapon::from_json(json{{"type", s}}).type;
+    };
+    REQUIRE(parse_type("Pistol") == g::WeaponType::Pistol);
+    REQUIRE(parse_type("Rifle") == g::WeaponType::Rifle);
+    REQUIRE(parse_type("SniperRifle") == g::WeaponType::SniperRifle);
+    REQUIRE(parse_type("Submachine") == g::WeaponType::Submachine);
+    REQUIRE(parse_type("Shotgun") == g::WeaponType::Shotgun);
+    REQUIRE(parse_type("Machine") == g::WeaponType::Machine);
+    REQUIRE(parse_type("Knife") == g::WeaponType::Knife);
+    REQUIRE(parse_type("Grenade") == g::WeaponType::Grenade);
+    REQUIRE(parse_type("C4") == g::WeaponType::C4);
+    REQUIRE(parse_type("other") == g::WeaponType::Unknown);
 }
 
 // ---- Player -----------------------------------------------------------------
@@ -275,11 +335,51 @@ TEST_CASE("Player::from_json parses core fields")
     REQUIRE(p.name == "TestPlayer");
     REQUIRE(p.clan == "TestClan");
     REQUIRE(p.observer_slot == 3);
-    REQUIRE(p.team == "CT");
+    REQUIRE(p.team == g::PlayerTeam::CT);
+    REQUIRE(p.activity == g::PlayerActivity::Playing);
     REQUIRE(p.position.x == Approx(-730.81));
     REQUIRE(p.position.z == Approx(244.03));
     REQUIRE(p.forward.x == Approx(0.93));
     REQUIRE(p.spectarget == std::nullopt);
+}
+
+TEST_CASE("Player::from_json parses all PlayerTeam values")
+{
+    auto parse_team = [](const std::string& s)
+    {
+        return g::Player::from_json(json{{"team", s}}).team;
+    };
+    REQUIRE(parse_team("CT") == g::PlayerTeam::CT);
+    REQUIRE(parse_team("T") == g::PlayerTeam::T);
+    REQUIRE(parse_team("spectator") == g::PlayerTeam::Spectator);
+    REQUIRE(parse_team("Spectator") == g::PlayerTeam::Spectator);
+    REQUIRE(parse_team("other") == g::PlayerTeam::Unknown);
+}
+
+TEST_CASE("Player::from_json parses all PlayerActivity values")
+{
+    auto parse_activity = [](const std::string& s)
+    {
+        return g::Player::from_json(json{{"activity", s}}).activity;
+    };
+    REQUIRE(parse_activity("playing") == g::PlayerActivity::Playing);
+    REQUIRE(parse_activity("spectating") == g::PlayerActivity::Spectating);
+    REQUIRE(parse_activity("menu") == g::PlayerActivity::Menu);
+    REQUIRE(parse_activity("other") == g::PlayerActivity::Unknown);
+}
+
+TEST_CASE("Player::from_json parses crosshaircode when present")
+{
+    auto j = json{{"crosshaircode", "CSGO-abc12-def34-ghi56-jkl78-mno90"}};
+    auto p = g::Player::from_json(j);
+    REQUIRE(p.crosshaircode.has_value());
+    REQUIRE(*p.crosshaircode == "CSGO-abc12-def34-ghi56-jkl78-mno90");
+}
+
+TEST_CASE("Player::from_json crosshaircode absent when field missing")
+{
+    auto p = g::Player::from_json(json{{"steamid", "500"}});
+    REQUIRE(p.crosshaircode == std::nullopt);
 }
 
 TEST_CASE("Player::from_json parses spectarget when present")
@@ -339,7 +439,7 @@ TEST_CASE("all_players_from_json injects steamid from map key")
     REQUIRE(players.at("500").steamid == "500");
     REQUIRE(players.at("500").name == "Alpha");
     REQUIRE(players.at("521").steamid == "521");
-    REQUIRE(players.at("521").team == "T");
+    REQUIRE(players.at("521").team == g::PlayerTeam::T);
 }
 
 // ---- Grenade ----------------------------------------------------------------

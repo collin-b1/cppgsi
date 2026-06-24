@@ -530,6 +530,49 @@ TEST_CASE("player().on(&Player::state) fires only when player state changes") {
     REQUIRE(calls == 2);
 }
 
+// ---- on_grenade_detonated (any) ---------------------------------------------
+
+TEST_CASE("on_grenade_detonated(cb) fires for any grenade that disappears")
+{
+    g::GSIDispatcher d;
+    std::vector<std::string> detonated_ids;
+    d.on_grenade_detonated([&](const std::string& id, const g::Grenade&) {
+        detonated_ids.push_back(id);
+    });
+
+    auto j1 = json{
+        {"grenades", {
+            {"100", {{"type", "frag"}, {"owner", "500"}, {"lifetime", "0.5"}, {"position", "1.0, 2.0, 3.0"}, {"velocity", "0.0, 0.0, 0.0"}}},
+            {"101", {{"type", "smoke"}, {"owner", "501"}, {"lifetime", "1.0"}}}
+        }}
+    };
+    d.dispatch(j1);
+    REQUIRE(detonated_ids.empty()); // nothing detonated yet
+
+    // Both grenades gone
+    d.dispatch(json{{"grenades", json::object()}});
+    REQUIRE(detonated_ids.size() == 2);
+    REQUIRE((std::find(detonated_ids.begin(), detonated_ids.end(), "100") != detonated_ids.end()));
+    REQUIRE((std::find(detonated_ids.begin(), detonated_ids.end(), "101") != detonated_ids.end()));
+}
+
+TEST_CASE("on_grenade_detonated(cb) can be unsubscribed")
+{
+    g::GSIDispatcher d;
+    int calls = 0;
+    auto id = d.on_grenade_detonated([&](const std::string&, const g::Grenade&) { ++calls; });
+
+    auto with_nade = json{{"grenades", {{"200", {{"type", "frag"}, {"owner", "500"}, {"lifetime", "0.5"}}}}}};
+    d.dispatch(with_nade);
+    d.dispatch(json{{"grenades", json::object()}});
+    REQUIRE(calls == 1);
+
+    d.unsubscribe(id);
+    d.dispatch(with_nade);
+    d.dispatch(json{{"grenades", json::object()}});
+    REQUIRE(calls == 1); // not incremented after unsubscribe
+}
+
 // ---- on_game_state ----------------------------------------------------------
 
 TEST_CASE(

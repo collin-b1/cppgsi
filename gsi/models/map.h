@@ -6,25 +6,37 @@
 namespace cs2gsi {
     enum class MapPhase { Warmup, Live, Intermission, GameOver, Unknown };
 
+    enum class GameMode {
+        Competitive, Casual, Deathmatch, Wingman, ArmsRace, Demolition, Custom, Unknown
+    };
+
+    enum class RoundWinReason {
+        CTWinElimination, CTWinTime, CTWinDefuse,
+        TWinElimination, TWinBomb,
+        Unknown
+    };
+
     struct TeamState {
         int score{};
         int consecutive_round_losses{};
         int timeouts_remaining{};
         int matches_won_this_series{};
+        std::string name;
+        std::string flag;
 
         bool operator==(const TeamState &) const = default;
         static TeamState from_json(const nlohmann::json &j);
     };
 
     struct Map {
-        std::string mode;
+        GameMode mode{GameMode::Unknown};
         std::string name;
         MapPhase phase{MapPhase::Unknown};
         int round{};
         int num_matches_to_win_series{};
         TeamState team_ct;
         TeamState team_t;
-        std::map<int, std::string> round_wins;
+        std::map<int, RoundWinReason> round_wins;
 
         bool operator==(const Map &) const = default;
         static Map from_json(const nlohmann::json &j);
